@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>DocSim — Word-Level Document Similarity</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<style>
+:root{
+  --bg:#0B0F14; --panel:#121821; --panel2:#171F2B; --line:#232E3D;
+  --text:#E6EDF3; --dim:#8B98A5; --signal:#5EEAD4; --signal-dim:#1D4E4A;
+  --warn:#F0B849;
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px);
+}
+*{box-sizing:border-box}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+html,body{height:100%;margin:0;background:var(--bg);color:var(--text);
+  font-family:'Space Grotesk',system-ui,sans-serif;}
+.mono{font-family:'IBM Plex Mono',monospace}
+.screen{min-height:100%;display:none;padding:64px 24px 48px;}
+.screen.active{display:block;animation:fade .35s ease;}
+@keyframes fade{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+.wrap{max-width:760px;margin:0 auto;}
+header.top{position:sticky;top:env(safe-area-inset-top,0px);display:flex;justify-content:space-between;
+  align-items:center;padding:18px 24px;border-bottom:1px solid var(--line);background:rgba(11,15,20,.9);
+  backdrop-filter:blur(6px);}
+.logo{font-weight:700;letter-spacing:.02em;font-size:15px;}
+.logo span{color:var(--signal)}
+nav a{color:var(--dim);text-decoration:none;font-size:14px;margin-left:22px;}
+nav a:hover{color:var(--text)}
+
+.hero{padding:56px 0 20px;}
+.hero h1{font-size:clamp(32px,6vw,52px);line-height:1.05;font-weight:700;margin:0 0 18px;max-width:14ch;}
+.hero p{color:var(--dim);font-size:17px;max-width:46ch;line-height:1.55;margin:0 0 28px;}
+.flags{display:flex;flex-wrap:wrap;gap:8px;margin:26px 0 34px;}
+.flag{border:1px solid var(--line);color:var(--dim);padding:6px 12px;border-radius:4px;font-size:12.5px;}
+.flag b{color:var(--signal);font-weight:600;}
+btn,.btn{display:inline-flex;align-items:center;gap:8px;background:var(--signal);color:#06201D;
+  border:none;padding:14px 24px;font-family:inherit;font-size:15px;font-weight:600;border-radius:4px;
+  cursor:pointer;}
+.btn:hover{filter:brightness(1.08)}
+.btn.ghost{background:transparent;color:var(--text);border:1px solid var(--line);}
+.btn.ghost:hover{border-color:var(--signal);color:var(--signal)}
+.btn:disabled{opacity:.4;cursor:not-allowed;filter:none}
+.stepline{display:flex;gap:0;margin-top:64px;border-top:1px solid var(--line);}
+.stepline .s{flex:1;padding:18px 4px 0;font-size:12.5px;color:var(--dim);border-left:1px solid var(--line);}
+.stepline .s:first-child{border-left:none}
+.stepline .s b{display:block;color:var(--text);font-family:'IBM Plex Mono',monospace;font-size:11px;
+  color:var(--signal);margin-bottom:4px;}
+
+.eyebrow{color:var(--signal);font-family:'IBM Plex Mono',monospace;font-size:12px;letter-spacing:.04em;margin:0 0 10px;}
+h2.big{font-size:clamp(24px,4vw,34px);margin:0 0 12px;font-weight:700;}
+.sub{color:var(--dim);font-size:15px;line-height:1.55;margin:0 0 36px;max-width:52ch;}
+
+.counter{display:flex;align-items:center;gap:22px;margin:8px 0 30px;}
+.counter button{width:44px;height:44px;border-radius:4px;border:1px solid var(--line);background:var(--panel);
+  color:var(--text);font-size:20px;cursor:pointer;}
+.counter button:hover{border-color:var(--signal)}
+.counter .num{font-family:'IBM Plex Mono',monospace;font-size:40px;min-width:50px;text-align:center;}
+.hint{color:var(--dim);font-size:13px;margin-bottom:36px;font-family:'IBM Plex Mono',monospace;}
+
+.uploads{display:flex;flex-direction:column;gap:14px;margin-bottom:30px;}
+.upcard{border:1px solid var(--line);background:var(--panel);border-radius:6px;padding:18px;
+  display:flex;align-items:center;gap:16px;transition:border-color .15s;}
+.upcard.filled{border-color:var(--signal-dim);background:var(--panel2)}
+.upcard .idx{font-family:'IBM Plex Mono',monospace;color:var(--signal);font-size:13px;min-width:74px;}
+.upcard .meta{flex:1;min-width:0;}
+.upcard .fname{font-size:14.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.upcard .fsub{font-family:'IBM Plex Mono',monospace;color:var(--dim);font-size:11.5px;margin-top:2px;}
+.upcard .placeholder{color:var(--dim);font-size:13.5px;}
+.upcard input[type=file]{display:none}
+.upcard label.pick{border:1px solid var(--line);padding:8px 14px;border-radius:4px;font-size:13px;cursor:pointer;
+  white-space:nowrap;}
+.upcard label.pick:hover{border-color:var(--signal);color:var(--signal)}
+.upcard .rm{background:none;border:none;color:var(--dim);cursor:pointer;font-size:18px;padding:4px 8px;}
+.upcard .rm:hover{color:var(--warn)}
+.filetypes{color:var(--dim);font-size:12px;margin:-18px 0 30px;font-family:'IBM Plex Mono',monospace;}
+.err{color:var(--warn);font-size:13.5px;margin:-14px 0 22px;min-height:18px;}
+
+.proc{max-width:440px;margin:60px auto 0;text-align:center;}
+.proc .ring{width:120px;height:120px;margin:0 auto 30px;border-radius:50%;
+  border:3px solid var(--line);border-top-color:var(--signal);animation:spin 1.1s linear infinite;
+  display:flex;align-items:center;justify-content:center;}
+@keyframes spin{to{transform:rotate(360deg)}}
+.proc .pct{font-family:'IBM Plex Mono',monospace;font-size:22px;color:var(--signal);}
+.log{text-align:left;font-family:'IBM Plex Mono',monospace;font-size:13px;color:var(--dim);
+  border:1px solid var(--line);border-radius:6px;padding:18px 20px;}
+.log div{padding:4px 0;opacity:.35;}
+.log div.done{opacity:1;color:var(--text);}
+.log div.active{opacity:1;color:var(--signal);}
+.log div .m{display:inline-block;width:18px;}
+
+.results-head{display:flex;justify-content:space-between;align-items:flex-end;margin-bottom:6px;flex-wrap:wrap;gap:12px;}
+.results-head .cnt{color:var(--dim);font-family:'IBM Plex Mono',monospace;font-size:13px;}
+.notebox{border:1px solid var(--signal-dim);background:rgba(94,234,212,.06);border-radius:6px;
+  padding:16px 18px;font-size:13.5px;color:var(--dim);line-height:1.55;margin:26px 0 38px;}
+.notebox b{color:var(--signal)}
+
+.pair{border:1px solid var(--line);border-radius:8px;padding:24px;margin-bottom:18px;background:var(--panel);}
+.pair .docs{display:flex;justify-content:space-between;gap:14px;font-size:13px;margin-bottom:20px;}
+.pair .docs .d{color:var(--dim);}
+.pair .docs .d b{display:block;color:var(--text);font-size:14.5px;font-weight:600;margin-bottom:2px;
+  max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.pair .arrow{color:var(--line);align-self:center;}
+.simbar-row{display:flex;align-items:center;gap:18px;margin-bottom:16px;}
+.simpct{font-family:'IBM Plex Mono',monospace;font-size:34px;color:var(--signal);min-width:92px;}
+.simbar{flex:1;height:8px;background:var(--panel2);border-radius:4px;overflow:hidden;}
+.simbar i{display:block;height:100%;background:var(--signal);border-radius:4px;}
+.pairstats{display:flex;gap:28px;font-family:'IBM Plex Mono',monospace;font-size:12.5px;color:var(--dim);
+  margin-bottom:16px;flex-wrap:wrap;}
+.pairstats b{color:var(--text);font-weight:500;}
+.viewwords{background:none;border:1px solid var(--line);color:var(--text);font-size:13px;padding:9px 14px;
+  border-radius:4px;cursor:pointer;font-family:inherit;}
+.viewwords:hover{border-color:var(--signal);color:var(--signal)}
+.words{display:none;flex-wrap:wrap;gap:6px;margin-top:16px;}
+.words.open{display:flex}
+.chip{font-family:'IBM Plex Mono',monospace;font-size:12px;border:1px solid var(--line);background:var(--panel2);
+  padding:4px 9px;border-radius:20px;color:var(--dim);}
+
+.matrixwrap{overflow-x:auto;margin:36px 0;border:1px solid var(--line);border-radius:8px;}
+table.matrix{border-collapse:collapse;width:100%;font-family:'IBM Plex Mono',monospace;font-size:12.5px;}
+table.matrix th,table.matrix td{padding:12px 16px;text-align:center;border-bottom:1px solid var(--line);
+  border-right:1px solid var(--line);white-space:nowrap;}
+table.matrix th{color:var(--dim);font-weight:500;background:var(--panel2);}
+table.matrix td.self{color:var(--line);}
+table.matrix td{color:var(--text);}
+table.matrix tr th:first-child,table.matrix tr td:first-child{text-align:left;color:var(--dim);
+  background:var(--panel2);position:sticky;left:0;}
+
+.actions{display:flex;gap:12px;margin-top:36px;flex-wrap:wrap;}
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="logo">DOC<span>SIM</span></div>
+  <nav><a href="#" onclick="go('landing');return false;">Home</a><a href="#how">How it works</a></nav>
+</header>
+
+<!-- LANDING -->
+<section id="landing" class="screen active">
+  <div class="wrap">
+    <div class="hero">
+      <h1>See exactly which words two documents share.</h1>
+      <p>DocSim compares documents word-by-word using tokenization and unique-word sets — no AI, no cloud, no black box. Just the words, laid bare.</p>
+      <button class="btn" onclick="go('count')">Get started →</button>
+      <div class="flags">
+        <span class="flag"><b>No AI</b> · no embeddings</span>
+        <span class="flag"><b>No GPU</b> · runs anywhere</span>
+        <span class="flag"><b>Word-level</b> · fully transparent</span>
+      </div>
+    </div>
+    <div id="how" class="stepline">
+      <div class="s"><b>01 input</b>Load 2–10 documents</div>
+      <div class="s"><b>02 preprocess</b>Lowercase, strip punctuation</div>
+      <div class="s"><b>03 tokenize</b>Split into words</div>
+      <div class="s"><b>04 hashset</b>Collect unique words</div>
+      <div class="s"><b>05 compare</b>Overlap ÷ reference size</div>
+    </div>
+  </div>
+</section>
+
+<!-- COUNT -->
+<section id="count" class="screen">
+  <div class="wrap">
+    <p class="eyebrow">step 1 / 3</p>
+    <h2 class="big">How many documents?</h2>
+    <p class="sub">Choose how many documents you want to compare against each other.</p>
+    <div class="counter">
+      <button onclick="changeCount(-1)">−</button>
+      <div class="num mono" id="countNum">3</div>
+      <button onclick="changeCount(1)">+</button>
+    </div>
+    <div class="hint">supported: 2–10 documents</div>
+    <button class="btn" onclick="buildUploadScreen()">Continue →</button>
+  </div>
+</section>
+
+<!-- UPLOAD -->
+<section id="upload" class="screen">
+  <div class="wrap">
+    <p class="eyebrow">step 2 / 3</p>
+    <h2 class="big">Select your documents</h2>
+    <p class="sub" id="uploadSub"></p>
+    <div class="uploads" id="uploadList"></div>
+    <div class="filetypes">accepted: .txt · .docx · .pdf</div>
+    <div class="err" id="uploadErr"></div>
+    <div class="actions">
+      <button class="btn ghost" onclick="go('count')">← Back</button>
+      <button class="btn" id="compareBtn" disabled onclick="runComparison()">Compare documents</button>
+    </div>
+  </div>
+</section>
+
+<!-- PROCESSING -->
+<section id="processing" class="screen">
+  <div class="wrap">
+    <div class="proc">
+      <div class="ring"><div class="pct mono" id="procPct">0%</div></div>
+      <div class="log" id="procLog"></div>
+    </div>
+  </div>
+</section>
+
+<!-- RESULTS -->
+<section id="results" class="screen">
+  <div class="wrap">
+    <div class="results-head">
+      <div>
+        <p class="eyebrow">similarity report</p>
+        <h2 class="big" style="margin-bottom:0">Results</h2>
+      </div>
+      <div class="cnt" id="resultsCount"></div>
+    </div>
+    <div class="notebox"><b>Note —</b> similarity reflects word overlap, not plagiarism. Common vocabulary and shared domain terms naturally produce overlap. Treat this as a signal for human review, not a verdict.</div>
+    <div id="pairsContainer"></div>
+    <div id="matrixContainer"></div>
+    <div class="actions">
+      <button class="btn ghost" onclick="go('landing');resetAll();">New comparison</button>
+    </div>
+  </div>
+</section>
+
+<script>
+let DOC_COUNT = 3;
+let FILES = []; // {name, text}
+const STOP = new Set(['the','a','an','and','or','but','is','are','was','were','be','been','of','to','in','on','for','with','as','at','by','it','this','that','these','those','from','which']);
+
+function go(id){document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+  document.getElementById(id).classList.add('active'); window.scrollTo(0,0);}
+
+function changeCount(d){DOC_COUNT=Math.min(10,Math.max(2,DOC_COUNT+d));document.getElementById('countNum').textContent=DOC_COUNT;}
+
+function buildUploadScreen(){
+  FILES = Array(DOC_COUNT).fill(null);
+  document.getElementById('uploadSub').textContent = `Upload ${DOC_COUNT} documents to begin the comparison.`;
+  const list = document.getElementById('uploadList'); list.innerHTML='';
+  for(let i=0;i<DOC_COUNT;i++){
+    const card = document.createElement('div'); card.className='upcard'; card.id='card'+i;
+    card.innerHTML = `
+      <div class="idx mono">DOC ${String(i+1).padStart(2,'0')}</div>
+      <div class="meta">
+        <div class="fname placeholder" id="fname${i}">No file selected</div>
+        <div class="fsub" id="fsub${i}"></div>
+      </div>
+      <button class="rm" id="rm${i}" style="display:none" onclick="removeFile(${i})">✕</button>
+      <label class="pick" for="file${i}">Choose file</label>
+      <input type="file" id="file${i}" accept=".txt,.docx,.pdf" onchange="handleFile(${i},this.files[0])">
+    `;
+    list.appendChild(card);
+  }
+  document.getElementById('uploadErr').textContent='';
+  go('upload');
+}
+
+async function extractText(file){
+  const ext = file.name.split('.').pop().toLowerCase();
+  if(ext==='txt'){ return await file.text(); }
+  if(ext==='docx'){
+    const buf = await file.arrayBuffer();
+    const res = await mammoth.extractRawText({arrayBuffer:buf});
+    return res.value;
+  }
+  if(ext==='pdf'){
+    pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+    const buf = await file.arrayBuffer();
+    const doc = await pdfjsLib.getDocument({data:buf}).promise;
+    let out='';
+    for(let p=1;p<=doc.numPages;p++){
+      const page = await doc.getPage(p);
+      const content = await page.getTextContent();
+      out += content.items.map(it=>it.str).join(' ') + ' ';
+    }
+    return out;
+  }
+  throw new Error('Unsupported file type');
+}
+
+async function handleFile(i, file){
+  if(!file) return;
+  const errEl = document.getElementById('uploadErr'); errEl.textContent='';
+  document.getElementById('fname'+i).textContent = 'Reading…';
+  try{
+    const text = await extractText(file);
+    if(!text || !text.trim()) throw new Error('empty');
+    FILES[i] = {name:file.name, text};
+    document.getElementById('fname'+i).textContent = file.name;
+    document.getElementById('fname'+i).classList.remove('placeholder');
+    document.getElementById('fsub'+i).textContent = `${(file.size/1024).toFixed(1)} KB · uploaded`;
+    document.getElementById('card'+i).classList.add('filled');
+    document.getElementById('rm'+i).style.display='inline-block';
+  }catch(e){
+    errEl.textContent = `Could not read "${file.name}". Try a .txt or .docx version.`;
+    FILES[i]=null;
+  }
+  updateCompareBtn();
+}
+
+function removeFile(i){
+  FILES[i]=null;
+  document.getElementById('fname'+i).textContent='No file selected';
+  document.getElementById('fname'+i).classList.add('placeholder');
+  document.getElementById('fsub'+i).textContent='';
+  document.getElementById('card'+i).classList.remove('filled');
+  document.getElementById('rm'+i).style.display='none';
+  document.getElementById('file'+i).value='';
+  updateCompareBtn();
+}
+
+function updateCompareBtn(){
+  document.getElementById('compareBtn').disabled = !FILES.every(f=>f);
+}
+
+function tokenize(text){
+  const words = text.toLowerCase().replace(/[^a-z0-9'\s]/g,' ').split(/\s+/).filter(w=>w.length>1 && !STOP.has(w));
+  return new Set(words); // HashSet-equivalent: unique words
+}
+
+async function runComparison(){
+  go('processing');
+  const stages = ['Documents loaded','Text extracted','Text preprocessed','Words tokenized','Unique words identified (HashSet)','Finding common words','Calculating similarity','Generating report'];
+  const logEl = document.getElementById('procLog'); logEl.innerHTML='';
+  stages.forEach((s,idx)=>{
+    const d = document.createElement('div'); d.id='stg'+idx;
+    d.innerHTML = `<span class="m">○</span>${s}`;
+    logEl.appendChild(d);
+  });
+  const pctEl = document.getElementById('procPct');
+
+  for(let i=0;i<stages.length;i++){
+    await new Promise(r=>setTimeout(r, 260));
+    const el = document.getElementById('stg'+i);
+    el.classList.add('active'); el.querySelector('.m').textContent='◉';
+    pctEl.textContent = Math.round(((i+1)/stages.length)*100)+'%';
+    await new Promise(r=>setTimeout(r, 180));
+    el.classList.remove('active'); el.classList.add('done'); el.querySelector('.m').textContent='✓';
+  }
+  await new Promise(r=>setTimeout(r,300));
+  computeAndRender();
+}
+
+function computeAndRender(){
+  const sets = FILES.map(f=>tokenize(f.text));
+  const n = FILES.length;
+  const matrix = Array.from({length:n},()=>Array(n).fill(null));
+  const pairs = [];
+  for(let a=0;a<n;a++){
+    for(let b=0;b<n;b++){
+      if(a===b){continue;}
+      const setA = sets[a], setB = sets[b];
+      let common = 0;
+      setA.forEach(w=>{ if(setB.has(w)) common++; });
+      const sim = setA.size ? (common/setA.size)*100 : 0;
+      matrix[a][b] = sim;
+      if(a<b){
+        const commonWords = [...setA].filter(w=>setB.has(w)).sort();
+        const simAB = setA.size ? (commonWords.length/setA.size)*100 : 0;
+        const simBA = setB.size ? (commonWords.length/setB.size)*100 : 0;
+        pairs.push({a,b,commonWords,simAB,simBA,uniqueA:setA.size,uniqueB:setB.size});
+      }
+    }
+  }
+  renderResults(pairs, matrix, n);
+  go('results');
+}
+
+function renderResults(pairs, matrix, n){
+  document.getElementById('resultsCount').textContent = `${n} documents compared · ${pairs.length} pair${pairs.length>1?'s':''}`;
+  const cont = document.getElementById('pairsContainer'); cont.innerHTML='';
+  pairs.forEach((p,pi)=>{
+    const avg = (p.simAB+p.simBA)/2;
+    const div = document.createElement('div'); div.className='pair';
+    div.innerHTML = `
+      <div class="docs">
+        <div class="d">Document ${p.a+1}<b>${FILES[p.a].name}</b></div>
+        <div class="arrow mono">↔</div>
+        <div class="d">Document ${p.b+1}<b>${FILES[p.b].name}</b></div>
+      </div>
+      <div class="simbar-row">
+        <div class="simpct">${avg.toFixed(1)}%</div>
+        <div class="simbar"><i style="width:${avg}%"></i></div>
+      </div>
+      <div class="pairstats">
+        <span>common words · <b>${p.commonWords.length}</b></span>
+        <span>doc ${p.a+1} unique · <b>${p.uniqueA}</b> (${p.simAB.toFixed(1)}%)</span>
+        <span>doc ${p.b+1} unique · <b>${p.uniqueB}</b> (${p.simBA.toFixed(1)}%)</span>
+      </div>
+      <button class="viewwords" onclick="this.nextElementSibling.classList.toggle('open')">View common words</button>
+      <div class="words">${p.commonWords.map(w=>`<span class="chip">${w}</span>`).join('') || '<span class="chip">none found</span>'}</div>
+    `;
+    cont.appendChild(div);
+  });
+
+  const mc = document.getElementById('matrixContainer'); mc.innerHTML='';
+  if(n>2){
+    let html = '<div class="matrixwrap"><table class="matrix"><tr><th></th>' +
+      FILES.map((f,i)=>`<th>Doc ${i+1}</th>`).join('') + '</tr>';
+    for(let a=0;a<n;a++){
+      html += `<tr><th>Doc ${a+1}</th>`;
+      for(let b=0;b<n;b++){
+        if(a===b){ html+='<td class="self">—</td>'; }
+        else { html+=`<td>${matrix[a][b].toFixed(1)}%</td>`; }
+      }
+      html += '</tr>';
+    }
+    html += '</table></div>';
+    mc.innerHTML = html;
+  }
+}
+
+function resetAll(){ DOC_COUNT=3; FILES=[]; document.getElementById('countNum').textContent=3; }
+</script>
+</body>
+</html>
