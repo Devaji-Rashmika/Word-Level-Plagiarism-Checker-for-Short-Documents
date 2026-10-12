@@ -1,0 +1,8 @@
+#label SAMPLE citation graph, invented for demonstration; NOT real Wikipedia link data
+#source ta-001
+#sink hi-002
+ta-001	hi-001	2
+ta-001	mr-001	3
+mr-001	hi-001	4
+mr-001	hi-002	2
+hi-001	hi-002	3

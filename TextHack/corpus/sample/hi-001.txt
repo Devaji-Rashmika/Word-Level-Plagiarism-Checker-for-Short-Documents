@@ -1,0 +1,4 @@
+# title: भारत
+# lang: hi
+# source: SAMPLE (hand-written for TextHack, NOT Wikipedia text)
+भारत दक्षिण एशिया में स्थित एक विशाल देश है। भारत की राजधानी नई दिल्ली है। भारत की भाषाएँ और संस्कृतियाँ बहुत विविध हैं।

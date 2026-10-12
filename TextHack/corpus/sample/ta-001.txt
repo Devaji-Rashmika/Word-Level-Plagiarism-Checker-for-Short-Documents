@@ -1,0 +1,4 @@
+# title: தமிழ்
+# lang: ta
+# source: SAMPLE (hand-written for TextHack, NOT Wikipedia text)
+தமிழ் இந்தியாவின் ஒரு பழமையான மொழி. சென்னை தமிழ்நாட்டின் தலைநகரம். இந்தியா பல மொழிகளைக் கொண்ட நாடு.
